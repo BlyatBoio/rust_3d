@@ -1,5 +1,11 @@
-use nalgebra::{Quaternion, UnitQuaternion, Vector3};
+use std::sync::{LazyLock, Mutex, MutexGuard};
 
+use nalgebra::{Norm, Quaternion, Unit, UnitQuaternion, Vector, Vector3, constraint};
+
+pub static VERTECIES:LazyLock<Mutex<Vec<PhysVert>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+pub static CONSTRAINTS: LazyLock<Mutex<Vec<PhysConstraint>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+
+#[derive(PartialEq)]
 pub struct PhysVert{
     mass:f32,
     pos:[f32;3],
@@ -41,6 +47,7 @@ impl PhysVert{
     }
 }
 
+#[derive(PartialEq)]
 pub enum PhysConstraint{
     ElasticConstraint { 
         vert_1:PhysVert,
@@ -58,27 +65,37 @@ pub enum PhysConstraint{
 }
 
 impl PhysConstraint{
-    pub fn new_elastic(vert_1:PhysVert, vert_2:PhysVert, spring_constant:f32, resting_length:f32, breaking_force:f32) -> PhysConstraint{
-        PhysConstraint::ElasticConstraint { vert_1, vert_2, spring_constant, resting_length, breaking_force }
+    pub fn new_elastic(vert_1:PhysVert, vert_2:PhysVert, spring_constant:f32, resting_length:f32, breaking_force:f32){
+        let new_const = PhysConstraint::ElasticConstraint { vert_1, vert_2, spring_constant, resting_length, breaking_force };
+        CONSTRAINTS.lock().unwrap().push(new_const);
     }
-    pub fn new_static(vert_1:PhysVert, vert_2:PhysVert, resting_length:f32, breaking_force:f32) -> PhysConstraint{
-        PhysConstraint::StaticConstraint { vert_1, vert_2, resting_length, breaking_force }
+    pub fn new_static(vert_1:PhysVert, vert_2:PhysVert, resting_length:f32, breaking_force:f32){
+        let new_const = PhysConstraint::StaticConstraint { vert_1, vert_2, resting_length, breaking_force };
+        CONSTRAINTS.lock().unwrap().push(new_const);
     }
 }
 
-pub struct PhysObj{
-    vertecies:Vec<PhysVert>,
-    constraints:Vec<PhysConstraint>,
+pub fn break_constraint(constraint:&PhysConstraint){
+    let mut constraints: MutexGuard<'_, Vec<PhysConstraint>> = CONSTRAINTS.lock().unwrap();
+    for i in 0..constraints.len(){
+        if &constraints[i] == constraint {
+            constraints.remove(i);
+            break;
+        }
+    }
 }
+pub fn get_quaternion_between(pos_1:[f32;3], pos_2:[f32;3]) -> UnitQuaternion<f32>{
+    let pos_1_total = pos_1[0] + pos_1[1] + pos_1[2];
+    let unit_pos_1 = Vector3::new(pos_1[0]/pos_1_total, pos_1[1]/pos_1_total, pos_1[2]/pos_1_total);
+    
+    let pos_2_total = pos_2[0] + pos_2[1] + pos_2[2];
+    let unit_pos_2 = Vector3::new(pos_2[0]/pos_2_total, pos_2[1]/pos_2_total, pos_2[2]/pos_2_total);
+    
+    let cross = Unit::new_normalize(unit_pos_1.cross(&unit_pos_2));
 
-pub struct Simulation{
-    vertecies:Vec<PhysVert>,
-    constraints:Vec<PhysConstraint>,
-    objects:Vec<PhysObj>,
-}
+    let theta = f32::acos(unit_pos_1.dot(&unit_pos_2));
 
-impl Simulation{
-
+    return UnitQuaternion::from_axis_angle(&cross, theta);
 }
 
 pub fn get_distance(pos_1:[f32;3], pos_2:[f32;3]) -> f32{
@@ -89,24 +106,33 @@ pub fn get_distance(pos_1:[f32;3], pos_2:[f32;3]) -> f32{
     )
 }
 pub fn update_constraint(constraint: &mut PhysConstraint){
+    let mut do_break = false;
     match constraint{
         PhysConstraint::ElasticConstraint { vert_1, vert_2, spring_constant, resting_length, breaking_force } => {
             let delta_x = get_distance(vert_1.pos, vert_2.pos);
             let applied_force = (delta_x - *resting_length) * *spring_constant;
+
+            if applied_force > *breaking_force {do_break = true;}
+
             if vert_1.is_fixed {
                 if vert_2.is_fixed {
                     return;
                 }
                 else{
-
+                    vert_2.apply_force(applied_force, get_quaternion_between(vert_1.pos, vert_2.pos));
                 }
             }
             else if vert_2.is_fixed {
-                
+                vert_1.apply_force(applied_force, get_quaternion_between(vert_2.pos, vert_1.pos));
+            }
+            else {
+                vert_1.apply_force(applied_force/2.0, get_quaternion_between(vert_2.pos, vert_1.pos));
+                vert_2.apply_force(applied_force/2.0, get_quaternion_between(vert_1.pos, vert_2.pos));
             }
         }
         PhysConstraint::StaticConstraint { vert_1, vert_2, resting_length, breaking_force } => {
             
         }
     }
+    if do_break { break_constraint(constraint); }
 }
