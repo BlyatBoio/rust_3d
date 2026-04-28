@@ -123,7 +123,7 @@ impl Camera{
         self.pos[2] += pos[2];
     }
     pub fn rotate_by(&mut self, x_rotation:f32, y_rotation:f32, z_rotation:f32){
-        let x_axis = UnitQuaternion::from_axis_angle(&Unit::new_normalize(self.direction.axis.unwrap() (&Vector3::y_axis())), x_rotation);
+        let x_axis = UnitQuaternion::from_axis_angle(&Unit::new_normalize(self.direction.transform_vector(&Vector3::y_axis())), x_rotation);
         let y_axis = UnitQuaternion::from_axis_angle(&Vector3::x_axis(), y_rotation);
         let z_axis = UnitQuaternion::from_axis_angle(&Unit::new_normalize(self.direction.transform_vector(&Vector3::z_axis())), z_rotation);
     
