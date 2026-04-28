@@ -1,4 +1,4 @@
-use nalgebra::{UnitQuaternion, Vector3};
+use nalgebra::{Unit, UnitQuaternion, Vector3};
 use pixels::{Pixels, SurfaceTexture};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize}, event::{ElementState, Event, MouseButton, WindowEvent}, event_loop::{ControlFlow, EventLoop}, keyboard::{KeyCode, KeyLocation, PhysicalKey}, window::{Window, WindowBuilder}
@@ -95,7 +95,8 @@ fn main() -> Result<()> {
                 let delta_x = (position.x - mouse_position.x) / 100.0;
                 let delta_y = (position.y - mouse_position.y) / 100.0;
 
-                camera.rotate_by(UnitQuaternion::from_euler_angles(-delta_y as f32, delta_x as f32, 0.0));
+                camera.rotate_by(delta_x as f32, -delta_y as f32, 0.0);
+
 
                 mouse_position = position;
             }
@@ -117,10 +118,10 @@ fn main() -> Result<()> {
                 }
 
                 if event.physical_key == PhysicalKey::Code(KeyCode::Space) {
-                    camera.add_global_position([0.0, 0.2, 0.0]);
+                    camera.add_global_position([0.0, -0.2, 0.0]);
                 }
                 if event.physical_key == PhysicalKey::Code(KeyCode::ShiftLeft) {
-                    camera.add_global_position([0.0, -0.2, 0.0]);
+                    camera.add_global_position([0.0, 0.2, 0.0]);
                 }
             }
             Event::AboutToWait => {

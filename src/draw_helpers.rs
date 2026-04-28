@@ -5,24 +5,10 @@ pub const HEIGHT:i32 = 500;
 
 pub static pixel_buffer: LazyLock<Mutex<Vec<u8>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 pub static changed_pixel_indecies: LazyLock<Mutex<Vec<i32>>> = LazyLock::new(|| Mutex::new(Vec::new()));
-pub static mut stroke_color: Color = Color{red:100, green:100, blue:100, alpha:255};
-pub static mut fill_color: Color = Color{red:255, green:255, blue:255, alpha:255};
+pub static mut stroke_color: [u8;4] = [100, 100, 100, 255];
+pub static mut fill_color: [u8;4] = [255, 255, 255, 255];
 pub static ellipse_draw_mode: Mutex<DrawMode> = Mutex::new(DrawMode::CENTER);
 pub static rect_draw_mode: Mutex<DrawMode> = Mutex::new(DrawMode::TOPLEFT);
-
-pub struct Color{
-    pub red:u8,
-    pub green:u8,
-    pub blue:u8,
-    pub alpha:u8
-}
-
-impl Color{
-    pub fn new(red:u8, green:u8, blue:u8, alpha:u8) -> Self{
-        Self{red, green, blue, alpha}
-    }
-}
-
 pub enum DrawMode{
     CENTER,
     TOPLEFT,
@@ -108,20 +94,20 @@ pub fn circle(x:u32, y:u32, radius:u32){
                 let base_index = (i+(j*WIDTH as u32))*4;
                 if !((base_index+3) as usize > buffer.len()){
                     unsafe{
-                        buffer[base_index as usize] = fill_color.red;
-                        buffer[(base_index+1) as usize] = fill_color.green;
-                        buffer[(base_index+2) as usize] = fill_color.blue;
-                        buffer[(base_index+3) as usize] = fill_color.alpha};
+                        buffer[base_index as usize] = fill_color[0];
+                        buffer[(base_index+1) as usize] = fill_color[1];
+                        buffer[(base_index+2) as usize] = fill_color[2];
+                        buffer[(base_index+3) as usize] = fill_color[3]};
                 }
             }
             else if dist < (radius as f32 + 1.0) / 2.0 {
                 let base_index = (i+(j*WIDTH as u32))*4;
                 if !((base_index+3) as usize > buffer.len()){
                     unsafe{
-                        buffer[base_index as usize] = stroke_color.red;
-                        buffer[(base_index+1) as usize] = stroke_color.green;
-                        buffer[(base_index+2) as usize] = stroke_color.blue;
-                        buffer[(base_index+3) as usize] = stroke_color.alpha};
+                        buffer[base_index as usize] = stroke_color[0];
+                        buffer[(base_index+1) as usize] = stroke_color[1];
+                        buffer[(base_index+2) as usize] = stroke_color[2];
+                        buffer[(base_index+3) as usize] = stroke_color[3]};
                 }
             }
         }
@@ -162,10 +148,10 @@ pub fn square(x:u32, y:u32, size:u32){
             let base_index = (i+(j*WIDTH as u32))*4;
             if !((base_index+3) as usize > buffer.len()){
                 unsafe{
-                    buffer[base_index as usize] = fill_color.red;
-                    buffer[(base_index+1) as usize] = fill_color.green;
-                    buffer[(base_index+2) as usize] = fill_color.blue;
-                    buffer[(base_index+3) as usize] = fill_color.alpha};
+                    buffer[base_index as usize] = fill_color[0];
+                    buffer[(base_index+1) as usize] = fill_color[1];
+                    buffer[(base_index+2) as usize] = fill_color[2];
+                    buffer[(base_index+3) as usize] = fill_color[3]};
             }
         }
     }
@@ -204,20 +190,20 @@ pub fn rect(x:u32, y:u32, w:u32, h:u32){
                 let base_index = (i+(j*WIDTH as u32))*4;
                 if !((base_index+3) as usize > buffer.len()){
                     unsafe{
-                        buffer[base_index as usize] = fill_color.red;
-                        buffer[(base_index+1) as usize] = fill_color.green;
-                        buffer[(base_index+2) as usize] = fill_color.blue;
-                        buffer[(base_index+3) as usize] = fill_color.alpha};
+                        buffer[base_index as usize] = fill_color[0];
+                        buffer[(base_index+1) as usize] = fill_color[1];
+                        buffer[(base_index+2) as usize] = fill_color[2];
+                        buffer[(base_index+3) as usize] = fill_color[3]};
                 }
             }
             else{
                 let base_index = (i+(j*WIDTH as u32))*4;
                 if !((base_index+3) as usize > buffer.len()){
                     unsafe{
-                        buffer[base_index as usize] = stroke_color.red;
-                        buffer[(base_index+1) as usize] = stroke_color.green;
-                        buffer[(base_index+2) as usize] = stroke_color.blue;
-                        buffer[(base_index+3) as usize] = stroke_color.alpha};
+                        buffer[base_index as usize] = stroke_color[0];
+                        buffer[(base_index+1) as usize] = stroke_color[1];
+                        buffer[(base_index+2) as usize] = stroke_color[2];
+                        buffer[(base_index+3) as usize] = stroke_color[3]};
                 }
             }
         }
@@ -235,10 +221,10 @@ pub fn line(x1:f32, y1:f32, x2:f32, y2:f32){
         else {base_index = ((x1-(i as f32))+(y_value*WIDTH as f32))*4.0;}
 
         unsafe {
-            buffer[base_index as usize] = stroke_color.red;
-            buffer[(base_index as usize)+1] = stroke_color.green;
-            buffer[(base_index as usize)+2] = stroke_color.blue;
-            buffer[(base_index as usize)+3] = stroke_color.alpha};
+            buffer[base_index as usize] = stroke_color[0];
+            buffer[(base_index as usize)+1] = stroke_color[1];
+            buffer[(base_index as usize)+2] = stroke_color[2];
+            buffer[(base_index as usize)+3] = stroke_color[3]};
 
         y_value += y_rate as f32;
     }
@@ -247,14 +233,14 @@ pub fn pixel(mut buffer: MutexGuard<'_, Vec<u8>>, x:u32, y:u32){
     let base_index = ((x+(y*WIDTH as u32))*4 )as usize;
 
     unsafe {
-        buffer[base_index] = fill_color.red;
-        buffer[base_index+1] = fill_color.green;
-        buffer[base_index+2] = fill_color.blue;
-        buffer[base_index+3] = fill_color.alpha};
+        buffer[base_index] = fill_color[0];
+        buffer[base_index+1] = fill_color[1];
+        buffer[base_index+2] = fill_color[2];
+        buffer[base_index+3] = fill_color[3]};
 }
 pub fn fill(color:[u8;4]){
-    unsafe{fill_color = Color {red:color[0], green:color[1], blue:color[2], alpha:color[3]}};
+    unsafe{fill_color = color};
 }
-pub fn stroke(color:Color){
+pub fn stroke(color:[u8;4]){
     unsafe{stroke_color = color};
 }
