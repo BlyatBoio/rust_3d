@@ -122,12 +122,14 @@ impl Camera{
         self.pos[1] += pos[1];
         self.pos[2] += pos[2];
     }
-    pub fn rotate_by(&mut self, x_rotation:f32, y_rotation:f32, z_rotation:f32){
-        let x_axis = UnitQuaternion::from_axis_angle(&Unit::new_normalize(self.direction.transform_vector(&Vector3::y_axis())), x_rotation);
-        let y_axis = UnitQuaternion::from_axis_angle(&Vector3::x_axis(), y_rotation);
-        let z_axis = UnitQuaternion::from_axis_angle(&Unit::new_normalize(self.direction.transform_vector(&Vector3::z_axis())), z_rotation);
-    
-        self.direction = self.direction * x_axis * y_axis * z_axis
+    pub fn rotate_by(&mut self, horizontal: f32, vertical: f32){
+        // Horizontal rotation around global y-axis (yaw)
+        let yaw = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), horizontal);
+        // Vertical rotation around local x-axis (pitch)
+        let pitch_axis = Vector3::x_axis();
+        let pitch = UnitQuaternion::from_axis_angle(&pitch_axis, vertical);
+        // Apply yaw first, then pitch
+        self.direction = yaw * self.direction * pitch;
     }
     pub fn add_local_position(&mut self, pos:[f32;3]){
         let global_vector = self.direction * Vector3::new(pos[0], pos[1], pos[2]);
