@@ -1,13 +1,16 @@
 use std::sync::{LazyLock, Mutex};
 
-use nalgebra::{UnitQuaternion, Vector3};
+use nalgebra::{Unit, UnitQuaternion, UnitVector3, Vector3};
 
 use crate::draw_helpers;
 
 pub static all_polygons: LazyLock<Mutex<Vec<Polygon>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+pub const FORWARD_VECTOR:Vector3<f32> = Vector3::new(0.0, 0.0, 1.0);
+pub const BACKGROUND_COLOR:[u8;4] = [100, 100, 100, 255];
+pub const RAY_DID_NOT_HIT:RaycastIntersectInfo = RaycastIntersectInfo{did_hit:false, color:BACKGROUND_COLOR, u:0.0, v:0.0, t:0.0};
 
 pub struct Camera{
-    pos:[f32;3],
+    pos:Vector3<f32>,
     direction:UnitQuaternion<f32>,
     raycasts:Vec<Raycast>,
     grid_resolution:f32,
@@ -15,51 +18,90 @@ pub struct Camera{
 }
 
 pub struct Raycast{
-    direction:UnitQuaternion<f32>,
-    return_color:[u8;4]
+    local_direction:Vector3<f32>,
+    return_color:[u8;4],
+    array_pos:[i32;2]
+}
+
+pub struct RaycastIntersectInfo{
+    did_hit:bool,
+    color:[u8;4],
+    u:f32,
+    v:f32,
+    t:f32,
 }
 
 pub struct Polygon{
-    pos_1:[f32;3],
-    pos_2:[f32;3],
-    pos_3:[f32;3],
+    pos_1:Vector3<f32>,
+    pos_2:Vector3<f32>,
+    pos_3:Vector3<f32>,
+    edge_1:Vector3<f32>,
+    edge_2:Vector3<f32>,
+    normal:Vector3<f32>,
     color:[u8;4],
 }
 
 impl Polygon{
-    pub fn new(pos_1:[f32;3], pos_2:[f32;3], pos_3:[f32;3], color:[u8;4]) -> Polygon{
-        Polygon{ pos_1:pos_1, pos_2:pos_2, pos_3:pos_3, color:color }
+    pub fn new(pos_1:Vector3<f32>, pos_2:Vector3<f32>, pos_3:Vector3<f32>, color:[u8;4]){
+        let edge_1 = pos_2 - pos_1;
+        let edge_2 = pos_3 - pos_1;
+        let normal = edge_1.cross(&edge_2);
+        all_polygons.lock().unwrap().push(Polygon{ pos_1, pos_2, pos_3, edge_1, edge_2, normal, color });
     }
+}
+
+pub fn create_cube(x:f32, y:f32, z:f32, w:f32, h:f32, l:f32){
+    // top face (y = y)
+    Polygon::new(Vector3::new(x, y, z), Vector3::new(x+w, y, z), Vector3::new(x, y, z+l), [0, 255, 0, 255]);
+    Polygon::new(Vector3::new(x, y, z+l), Vector3::new(x+w, y, z), Vector3::new(x+w, y, z+l), [0, 255, 0, 255]);
+
+    // bottom face (y = y+h)
+    Polygon::new(Vector3::new(x, y+h, z), Vector3::new(x+w, y+h, z), Vector3::new(x, y+h, z+l), [0, 255, 0, 255]);
+    Polygon::new(Vector3::new(x, y+h, z+l), Vector3::new(x+w, y+h, z), Vector3::new(x+w, y+h, z+l), [0, 255, 0, 255]);
+
+    // front face (z = z)
+    Polygon::new(Vector3::new(x, y, z), Vector3::new(x+w, y, z), Vector3::new(x, y+h, z), [0, 255, 0, 255]);
+    Polygon::new(Vector3::new(x, y+h, z), Vector3::new(x+w, y, z), Vector3::new(x+w, y+h, z), [0, 255, 0, 255]);
+
+    // back face (z = z+l)
+    Polygon::new(Vector3::new(x, y, z+l), Vector3::new(x, y+h, z+l), Vector3::new(x+w, y, z+l), [0, 255, 0, 255]);
+    Polygon::new(Vector3::new(x+w, y, z+l), Vector3::new(x, y+h, z+l), Vector3::new(x+w, y+h, z+l), [0, 255, 0, 255]);
+
+    // left face (x = x)
+    Polygon::new(Vector3::new(x, y, z), Vector3::new(x, y+h, z), Vector3::new(x, y, z+l), [0, 255, 0, 255]);
+    Polygon::new(Vector3::new(x, y, z+l), Vector3::new(x, y+h, z), Vector3::new(x, y+h, z+l), [0, 255, 0, 255]);
+
+    // right face (x = x+w)
+    Polygon::new(Vector3::new(x+w, y, z), Vector3::new(x+w, y, z+l), Vector3::new(x+w, y+h, z), [0, 255, 0, 255]);
+    Polygon::new(Vector3::new(x+w, y+h, z), Vector3::new(x+w, y, z+l), Vector3::new(x+w, y+h, z+l), [0, 255, 0, 255]);
+
 }
 
 impl Camera{
     pub fn new() -> Camera{
         let mut cam = Camera{ 
-            pos:[0.0, 0.0, 0.0],
-            direction: UnitQuaternion::from_euler_angles(0.0, 0.0, 0.0),
+            pos:Vector3::new(0.0, 0.0, 0.0),
+            direction: UnitQuaternion::from_axis_angle(&Unit::new_normalize(FORWARD_VECTOR), 0.0),
             raycasts:Vec::new(),
-            grid_resolution:10.0,
+            grid_resolution:5.0,
             fov:120.0};
         
-        let x_steps = (draw_helpers::WIDTH as f32 / cam.grid_resolution) as usize;
-        let y_steps = (draw_helpers::HEIGHT as f32 / cam.grid_resolution) as usize;
-        let fov_radians = cam.fov.to_radians();
+        let x_steps = draw_helpers::WIDTH as f32 / cam.grid_resolution;
+        let y_steps = draw_helpers::HEIGHT as f32 / cam.grid_resolution;
 
-        for i in 0..x_steps {
-            for j in 0..y_steps {
-                let x_offset = if x_steps > 1 {
-                    (i as f32 / (x_steps as f32 - 1.0)) * fov_radians - fov_radians / 2.0
-                } else {
-                    0.0
-                };
-                let y_offset = if y_steps > 1 {
-                    (j as f32 / (y_steps as f32 - 1.0)) * fov_radians - fov_radians / 2.0
-                } else {
-                    0.0
-                };
+        let fov_rad = cam.fov * std::f32::consts::PI / 180.0;
+        let tan_half_fov = (fov_rad / 2.0).tan();
 
-                let ray_direction = cam.direction * UnitQuaternion::from_euler_angles(y_offset, x_offset, 0.0);
-                cam.raycasts.push(Raycast{ direction: ray_direction, return_color:[0, 0, 0, 0] });
+        for i in 0..x_steps as i32 {
+            for j in 0..y_steps as i32 {
+                let u = i as f32 / x_steps;
+                let v = j as f32 / y_steps;
+                let x_ndc = u * 2.0 - 1.0;
+                let y_ndc = v * 2.0 - 1.0;
+                let x_image = x_ndc * tan_half_fov;
+                let y_image = y_ndc * tan_half_fov;
+                let local_direction = Vector3::new(x_image, y_image, 1.0).normalize();
+                cam.raycasts.push(Raycast{ local_direction, return_color:BACKGROUND_COLOR, array_pos:[i, j] });
             }
         }
 
@@ -71,10 +113,7 @@ impl Camera{
         self.pos[2] += pos[2];
     }
     pub fn rotate_by(&mut self, angle:UnitQuaternion<f32>){
-        self.direction = UnitQuaternion::from_quaternion(self.direction.quaternion() + angle.quaternion());
-        for i in 0..self.raycasts.len() {
-            self.raycasts[i].direction = UnitQuaternion::from_quaternion(self.direction.quaternion() + angle.quaternion());
-        }
+        self.direction = self.direction * angle;
     }
     pub fn add_local_position(&mut self, pos:[f32;3]){
         let global_vector = self.direction * Vector3::new(pos[0], pos[1], pos[2]);
@@ -84,62 +123,68 @@ impl Camera{
         let polys = all_polygons.lock().unwrap();
         for i in 0..self.raycasts.len() {
             let mut has_intersected = false;
-            for i in 0..polys.len() {
-                if ray_poly_intersect(&self.raycasts[i], &polys[i]) {
+            let mut min_t = 100000.0;
+            for j in 0..polys.len() {
+                let ray_info = ray_poly_intersect(self.pos, &self.raycasts[i], self.direction, &polys[j]);
+                if ray_info.did_hit {
                     has_intersected = true;
-                    self.raycasts[i].return_color = polys[i].color;
+                    if f32::abs(ray_info.t) < min_t {
+                        min_t = f32::abs(ray_info.t);
+                    }
+                    else{
+                        return;
+                    }
+                    if ray_info.u < 0.1 || ray_info.v < 0.1 {
+                        self.raycasts[i].return_color = [0, 0, 0, 255];
+                    }
+                    else {
+                        self.raycasts[i].return_color = polys[j].color;
+                    }
                 }
             }
-            if !has_intersected {
-                self.raycasts[i].return_color = [0, 0, 0, 0];
-            }
+            if !has_intersected {self.raycasts[i].return_color = BACKGROUND_COLOR;}
         }
     }
-    pub fn update_scren(&mut self){
-        let x_steps = (draw_helpers::WIDTH as f32 / self.grid_resolution) as u32;
-        let square_size = self.grid_resolution as u32;
-
-        for index in 0..self.raycasts.len() {
-            let x = (index as u32 % x_steps) * square_size;
-            let y = (index as u32 / x_steps) * square_size;
-            draw_helpers::square(x, y, square_size);
+    pub fn update_screen(&mut self){
+        for i in 0..self.raycasts.len() {
+            draw_helpers::fill(self.raycasts[i].return_color);
+            draw_helpers::square((self.raycasts[i].array_pos[0] * self.grid_resolution as i32) as u32, (self.raycasts[i].array_pos[1] * self.grid_resolution as i32) as u32, self.grid_resolution as u32);
         }
     }
 }
 
-pub fn ray_poly_intersect(raycast: &Raycast, polygon: &Polygon) -> bool {
-    let origin = Vector3::new(0.0, 0.0, 0.0);
-    let direction = raycast.direction * Vector3::new(0.0, 0.0, 1.0);
+pub fn ray_poly_intersect(origin: Vector3<f32>, raycast: &Raycast, camera_direction: UnitQuaternion<f32>, polygon: &Polygon) -> RaycastIntersectInfo {
+    
+    let direction = (camera_direction * raycast.local_direction).normalize();
 
-    let v0 = Vector3::new(polygon.pos_1[0], polygon.pos_1[1], polygon.pos_1[2]);
-    let v1 = Vector3::new(polygon.pos_2[0], polygon.pos_2[1], polygon.pos_2[2]);
-    let v2 = Vector3::new(polygon.pos_3[0], polygon.pos_3[1], polygon.pos_3[2]);
-
-    let edge1 = v1 - v0;
-    let edge2 = v2 - v0;
-    let h = direction.cross(&edge2);
-    let a = edge1.dot(&h);
+    let h = direction.cross(&polygon.edge_2);
+    let a = polygon.edge_1.dot(&h);
 
     const EPSILON: f32 = 1e-6;
     if a > -EPSILON && a < EPSILON {
-        return false;
+        return RAY_DID_NOT_HIT;
     }
 
     let f = 1.0 / a;
-    let s = origin - v0;
+    let s = origin - polygon.pos_1;
     let u = f * s.dot(&h);
 
     if u < 0.0 || u > 1.0 {
-        return false;
+        return RAY_DID_NOT_HIT;
     }
 
-    let q = s.cross(&edge1);
+    let q = s.cross(&polygon.edge_1);
     let v = f * direction.dot(&q);
 
     if v < 0.0 || u + v > 1.0 {
-        return false;
+        return RAY_DID_NOT_HIT;
     }
 
-    let t = f * edge2.dot(&q);
-    t > EPSILON
+    let t = f * polygon.edge_2.dot(&q);
+    if t > EPSILON {
+        return RaycastIntersectInfo { did_hit: true, color: polygon.color, u, v, t }
+    }
+    else {
+        return RAY_DID_NOT_HIT
+    }
 }

@@ -1,7 +1,10 @@
+use nalgebra::{UnitQuaternion, Vector3};
 use pixels::{Pixels, SurfaceTexture};
 use winit::{
-    dpi::{PhysicalPosition, PhysicalSize}, event::{ElementState, Event, MouseButton, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::{Window, WindowBuilder}
+    dpi::{PhysicalPosition, PhysicalSize}, event::{ElementState, Event, MouseButton, WindowEvent}, event_loop::{ControlFlow, EventLoop}, keyboard::{KeyCode, KeyLocation, PhysicalKey}, window::{Window, WindowBuilder}
 };
+
+use crate::rendering::{Camera, Polygon, create_cube};
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
@@ -23,6 +26,10 @@ fn main() -> Result<()> {
     let mut mouse_state: ElementState = ElementState::Released;
     let mut mouse_position: winit::dpi::PhysicalPosition<f64> = PhysicalPosition::new(0.0, 0.0); 
 
+    let mut camera:Camera = Camera::new();
+    //Polygon::new(Vector3::new(-1.0, 0.0, 1.0), Vector3::new(1.0, 0.0, 1.0), Vector3::new(0.0, 1.0, 1.0), [255, 0, 0, 255]);
+    create_cube(-2.5, 2.5, 10.0, 5.0, 5.0, -5.0);
+
     draw_helpers::init();
 
     event_loop.run(move |event, elwt| {
@@ -30,7 +37,7 @@ fn main() -> Result<()> {
             Event::Resumed => {
                 if window.is_none() {
                     elwt.set_control_flow(ControlFlow::Poll); // Never sleep and call the closure ASAP
-                    let built_window = WindowBuilder::new().with_title("Falling Sand").with_inner_size(PhysicalSize::new(WIDTH, HEIGHT)).build(elwt).unwrap();
+                    let built_window = WindowBuilder::new().with_title("Phys-3d").with_inner_size(PhysicalSize::new(WIDTH, HEIGHT)).build(elwt).unwrap();
 
                     let size= built_window.inner_size();
                     let window_ref: &'static Window = Box::leak(Box::new(built_window));
@@ -51,6 +58,9 @@ fn main() -> Result<()> {
 
                 if let Some(pixels) = &mut pixels {
                     let frame = pixels.frame_mut();
+
+                    camera.cast_rays();
+                    camera.update_screen();
 
                     let buffer = &draw_helpers::pixel_buffer.lock().unwrap();
                     for i in 0..frame.len() {
@@ -80,10 +90,38 @@ fn main() -> Result<()> {
                 mouse_state = state;
             }
             Event::WindowEvent {
-                event: WindowEvent::CursorMoved { position, .. }, ..
+                event: WindowEvent::CursorMoved { device_id: _, position }, ..
             } => {
-                // position is a PhysicalPosition<f64>
+                let delta_x = (position.x - mouse_position.x) / 100.0;
+                let delta_y = (position.y - mouse_position.y) / 100.0;
+
+                camera.rotate_by(UnitQuaternion::from_euler_angles(-delta_y as f32, delta_x as f32, 0.0));
+
                 mouse_position = position;
+            }
+            Event::WindowEvent {
+                event: WindowEvent::KeyboardInput { device_id: _, event, is_synthetic }, ..
+            } => {
+                if event.physical_key == PhysicalKey::Code(KeyCode::KeyW) {
+                    camera.add_local_position([0.0, 0.0, 0.2]);
+                }
+                if event.physical_key == PhysicalKey::Code(KeyCode::KeyS) {
+                    camera.add_local_position([0.0, 0.0, -0.2]);
+                }
+                
+                if event.physical_key == PhysicalKey::Code(KeyCode::KeyA) {
+                    camera.add_local_position([-0.2, 0.0, 0.0]);
+                }
+                if event.physical_key == PhysicalKey::Code(KeyCode::KeyD) {
+                    camera.add_local_position([0.2, 0.0, 0.0]);
+                }
+
+                if event.physical_key == PhysicalKey::Code(KeyCode::Space) {
+                    camera.add_global_position([0.0, 0.2, 0.0]);
+                }
+                if event.physical_key == PhysicalKey::Code(KeyCode::ShiftLeft) {
+                    camera.add_global_position([0.0, -0.2, 0.0]);
+                }
             }
             Event::AboutToWait => {
                 window.expect("Bug - Window should exist").request_redraw();

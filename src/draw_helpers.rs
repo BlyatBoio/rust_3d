@@ -35,7 +35,6 @@ pub fn init(){
     for i in 0..4*WIDTH*HEIGHT{
         pixel_buffer.lock().unwrap().push(0);
     }
-    print!("{}", pixel_buffer.lock().unwrap().len());
 }
 pub fn circle(x:u32, y:u32, radius:u32){
     let min_x: u32;
@@ -157,27 +156,16 @@ pub fn square(x:u32, y:u32, size:u32){
         }
     }
     let mut buffer = pixel_buffer.lock().unwrap();
-    for i in start_x-1..start_x+size+1{
-        for j in start_y-1..start_y+size+1{
-            if i>start_x&&i<start_x+size&&j>start_y&&j<start_y+size {
-                let base_index = (i+(j*WIDTH as u32))*4;
-                if !((base_index+3) as usize > buffer.len()){
-                    unsafe{
-                        buffer[base_index as usize] = fill_color.red;
-                        buffer[(base_index+1) as usize] = fill_color.green;
-                        buffer[(base_index+2) as usize] = fill_color.blue;
-                        buffer[(base_index+3) as usize] = fill_color.alpha};
-                }
-            }
-            else{
-                let base_index = (i+(j*WIDTH as u32))*4;
-                if !((base_index+3) as usize > buffer.len()){
-                    unsafe{
-                        buffer[base_index as usize] = stroke_color.red;
-                        buffer[(base_index+1) as usize] = stroke_color.green;
-                        buffer[(base_index+2) as usize] = stroke_color.blue;
-                        buffer[(base_index+3) as usize] = stroke_color.alpha};
-                }
+
+    for i in start_x..start_x+size{
+        for j in start_y..start_y+size{
+            let base_index = (i+(j*WIDTH as u32))*4;
+            if !((base_index+3) as usize > buffer.len()){
+                unsafe{
+                    buffer[base_index as usize] = fill_color.red;
+                    buffer[(base_index+1) as usize] = fill_color.green;
+                    buffer[(base_index+2) as usize] = fill_color.blue;
+                    buffer[(base_index+3) as usize] = fill_color.alpha};
             }
         }
     }
@@ -264,8 +252,8 @@ pub fn pixel(mut buffer: MutexGuard<'_, Vec<u8>>, x:u32, y:u32){
         buffer[base_index+2] = fill_color.blue;
         buffer[base_index+3] = fill_color.alpha};
 }
-pub fn fill(color:Color){
-    unsafe{fill_color = color};
+pub fn fill(color:[u8;4]){
+    unsafe{fill_color = Color {red:color[0], green:color[1], blue:color[2], alpha:color[3]}};
 }
 pub fn stroke(color:Color){
     unsafe{stroke_color = color};
